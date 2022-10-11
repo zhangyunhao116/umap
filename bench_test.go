@@ -1,9 +1,18 @@
 package umap
 
 import (
+	"os"
 	"strconv"
 	"testing"
 )
+
+var benchRuntimeMap bool
+
+func init() {
+	if os.Getenv("BENCH_TYPE") == "runtime" {
+		benchRuntimeMap = true
+	}
+}
 
 var (
 	cases = []int{6, 12, 18, 24, 30,
@@ -19,19 +28,36 @@ var (
 )
 
 func BenchmarkMapAccessHit(b *testing.B) {
-	b.Run("Uint64", runWith(benchmarkMapAccessHitUint64, cases...))
+	if benchRuntimeMap {
+		b.Run("Uint64", runWith(benchmarkMapAccessHitUint64Runtime, cases...))
+	} else {
+		b.Run("Uint64", runWith(benchmarkMapAccessHitUint64, cases...))
+	}
+
 }
 
 func BenchmarkMapRange(b *testing.B) {
-	b.Run("Uint64", runWith(benchmarkMapRangeUint64, cases...))
+	if benchRuntimeMap {
+		b.Run("Uint64", runWith(benchmarkMapRangeUint64Runtime, cases...))
+	} else {
+		b.Run("Uint64", runWith(benchmarkMapRangeUint64, cases...))
+	}
 }
 
 func BenchmarkMapAssignGrow(b *testing.B) {
-	b.Run("Uint64", runWith(benchmarkMapAssignGrowUint64, cases...))
+	if benchRuntimeMap {
+		b.Run("Uint64", runWith(benchmarkMapAssignGrowUint64Runtime, cases...))
+	} else {
+		b.Run("Uint64", runWith(benchmarkMapAssignGrowUint64, cases...))
+	}
 }
 
 func BenchmarkMapAssignReuse(b *testing.B) {
-	b.Run("Uint64", runWith(benchmarkMapAssignReuseUint64, cases...))
+	if benchRuntimeMap {
+		b.Run("Uint64", runWith(benchmarkMapAssignReuseUint64Runtime, cases...))
+	} else {
+		b.Run("Uint64", runWith(benchmarkMapAssignReuseUint64, cases...))
+	}
 }
 
 func benchmarkMapAccessHitUint64(b *testing.B, n int) {
@@ -82,6 +108,53 @@ func benchmarkMapAssignReuseUint64(b *testing.B, n int) {
 			m.Delete(key)
 			return true
 		})
+	}
+}
+
+func benchmarkMapAccessHitUint64Runtime(b *testing.B, n int) {
+	m := make(map[uint64]uint64, 0)
+	for i := 0; i < n; i++ {
+		m[uint64(i)] = uint64(i)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = m[uint64(i&(n-1))]
+	}
+}
+
+func benchmarkMapAssignGrowUint64Runtime(b *testing.B, n int) {
+	for i := 0; i < b.N; i++ {
+		m := make(map[uint64]uint64, 0)
+		for j := uint64(0); int(j) < n; j++ {
+			m[uint64(j)] = uint64(j)
+		}
+	}
+}
+
+func benchmarkMapRangeUint64Runtime(b *testing.B, n int) {
+	m := make(map[uint64]uint64, 0)
+	for i := 0; i < n; i++ {
+		m[uint64(i)] = uint64(i)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for key, value := range m {
+			rangecount += key
+			rangecount += value
+		}
+	}
+}
+
+func benchmarkMapAssignReuseUint64Runtime(b *testing.B, n int) {
+	m := make(map[uint64]uint64, 0)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for j := uint64(0); int(j) < n; j++ {
+			m[j] = j
+		}
+		for key, _ := range m {
+			delete(m, key)
+		}
 	}
 }
 
