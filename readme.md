@@ -130,7 +130,7 @@ MapAssignReuse/Uint64/65536-16  2.58ms ± 0%   0.96ms ± 2%   -62.77%  (p=0.000 
 
 Tips:
 
-- umap is slower in `MapAssignGrow/Uint64/6`, the reason is that in this case, the runtime hashmap is allocated in the stack instead of the heap. umap is always allcated in the heap.
+- umap is slower in `MapAssignGrow/Uint64/6`, the reason is that in this case, the runtime hashmap is allocated in the stack instead of the heap. umap is always allocated in the heap.
 
 - You can run this benchmark via
 
