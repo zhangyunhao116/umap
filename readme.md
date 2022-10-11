@@ -4,7 +4,27 @@ umap is a fast, reliable, simple hashmap that only supports the uint64 key/value
 
 The umap is mainly based on the SwissTable(https://github.com/abseil/abseil-cpp/blob/master/absl/container/internal/raw_hash_set.h).
 
+## QuickStart
 
+```golang
+package main
+
+import "github.com/zhangyunhao116/umap"
+
+func main() {
+	m := umap.New64(0)
+	m.Store(1, 2)
+	m.Store(3, 4)
+	m.Range(func(k, v uint64) bool {
+		println("range found", k, v)
+		return true
+	})
+	m.Delete(1)
+	println("map length", m.Len())
+	println(m.Load(1))
+}
+
+```
 
 ### Goals
 

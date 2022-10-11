@@ -221,7 +221,7 @@ func (h *Uint64Map) Delete(key uint64) {
 
 // Range calls f sequentially for each key and value present in the map.
 // If f returns false, range stops the iteration.
-func (h *Uint64Map) Range(f func(key uint64, value uint64) bool) {
+func (h *Uint64Map) Range(f func(k uint64, v uint64) bool) {
 	initBuckets := h.buckets
 	bucketNum := int(h.bucketmask + 1)
 
