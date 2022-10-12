@@ -1,6 +1,7 @@
 package umap
 
 import (
+	"math"
 	"unsafe"
 )
 
@@ -8,6 +9,8 @@ const (
 	emptySlot          uint8  = 0b1111_1111
 	deletedSlot        uint8  = 0b1000_0000
 	emptyOrDeletedMask uint64 = 0x8080_8080_8080_8080
+
+	allEmpty uint64 = math.MaxUint64
 
 	// LoadFactor.
 	// 0 -> invalid
@@ -42,9 +45,25 @@ type uint64kv struct {
 //
 // If length <= 0, it returns an empty map(including a pre-allocated bucket).
 func New64(length int) *Uint64Map {
-	bucketnum := itemNeedBucket(int(length))
+	// Make sure the compiler can inline New64(cost < 80).
+	bucketnum := uint(1)
+
+	if length >= bucketCnt {
+		minBucket := uint(nextPowerOfTwo(length) / bucketCnt)
+		// Make sure (capcity * LoadFactor) >= length.
+		if minBucket*maxItemInBucket < uint(length) {
+			minBucket *= 2
+		}
+		bucketnum = minBucket
+	}
+
+	x := make([]bmapuint64, bucketnum)
+	for i := range x {
+		*(*uint64)(unsafe.Pointer(&x[i].tophash)) = math.MaxUint64
+	}
+
 	return &Uint64Map{
-		buckets:    makeUint64BucketArray(int(bucketnum)),
+		buckets:    (*sliceHeader)(unsafe.Pointer(&x)).Data,
 		bucketmask: uint64(bucketnum) - 1,
 		growthLeft: int(bucketnum * bucketCnt),
 	}

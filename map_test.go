@@ -151,6 +151,11 @@ func TestSameKeyValue(t *testing.T) {
 }
 
 func TestNeedBucket(t *testing.T) {
+	itemNeedBucket := func(length int) int {
+		m := New64(length)
+		return int(m.bucketmask) + 1
+	}
+
 	for i := 0; i <= maxItemInBucket; i++ {
 		if itemNeedBucket(i) != 1 {
 			t.Fatal(i, itemNeedBucket(i))
@@ -172,7 +177,6 @@ func TestNeedBucket(t *testing.T) {
 	if itemNeedBucket(4*maxItemInBucket+1) != 8 {
 		t.Fatal()
 	}
-
 }
 
 func TestSameSizeGrow(t *testing.T) {

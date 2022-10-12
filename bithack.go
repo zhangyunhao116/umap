@@ -15,22 +15,12 @@ const (
 
 type sliceHeader struct {
 	Data unsafe.Pointer
-	Len  int
-	Cap  int
 }
 
 func makeUint64BucketArray(size int) unsafe.Pointer {
 	x := make([]bmapuint64, size)
 	for i := range x {
-		// The compiler will optimize this pattern.
-		x[i].tophash[0] = emptySlot
-		x[i].tophash[1] = emptySlot
-		x[i].tophash[2] = emptySlot
-		x[i].tophash[3] = emptySlot
-		x[i].tophash[4] = emptySlot
-		x[i].tophash[5] = emptySlot
-		x[i].tophash[6] = emptySlot
-		x[i].tophash[7] = emptySlot
+		*(*uint64)(unsafe.Pointer(&x[i].tophash)) = allEmpty
 	}
 	return (*sliceHeader)(unsafe.Pointer(&x)).Data
 }

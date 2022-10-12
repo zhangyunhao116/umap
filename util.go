@@ -18,22 +18,6 @@ func nextPowerOfTwo(length int) uint {
 	return uint(1) << (shift & (ptrSize*8 - 1)) // 1 << shift, optimized for code generation
 }
 
-func itemNeedBucket(length int) uint {
-	if length <= maxItemInBucket {
-		return 1
-	}
-
-	minSlots := nextPowerOfTwo(length)
-	minBucket := uint(minSlots / bucketCnt)
-
-	// Make sure capcity * LoadFactor >= length.
-	if minBucket*maxItemInBucket < uint(length) {
-		minBucket = minBucket << 1
-	}
-
-	return minBucket
-}
-
 //go:nosplit
 func add(p unsafe.Pointer, x uintptr) unsafe.Pointer {
 	return unsafe.Pointer(uintptr(p) + x)
