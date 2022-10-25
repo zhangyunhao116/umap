@@ -32,8 +32,14 @@ func TestBitHackMatchEmpty(t *testing.T) {
 	}
 
 	s = [8]uint8{11, 122, 0, deletedSlot, deletedSlot, deletedSlot, 0, 1}
-	status = matchTopHash(s, 12)
+	status = matchEmpty(s)
 	if status.AnyMatch() {
+		t.Fatal()
+	}
+
+	s = littleEndianUint64ToBytes(allEmpty)
+	status = matchEmpty(s)
+	if !status.AnyMatch() {
 		t.Fatal()
 	}
 
@@ -70,7 +76,7 @@ func TestBitHackSameSizeGrow(t *testing.T) {
 	res := [bucketCnt]uint8{emptySlot, deletedSlot, emptySlot, deletedSlot, emptySlot, emptySlot, deletedSlot, emptySlot}
 	for i := 0; i < bucketCnt; i++ {
 		if ns[i] != res[i] {
-			t.Fatalf("Expected ns[%d] == res[%d], got %d != %d", i, i, s[i], ns[i])
+			t.Fatalf("Expected ns[%d] == res[%d], got %d != %d", i, i, ns[i], res[i])
 		}
 	}
 }

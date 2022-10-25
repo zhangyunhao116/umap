@@ -1,7 +1,6 @@
 package umap
 
 import (
-	"math"
 	"unsafe"
 )
 
@@ -63,7 +62,7 @@ func New64(length int) *Uint64Map {
 
 	x := make([]bmapuint64, bucketnum)
 	for i := range x {
-		*(*uint64)(unsafe.Pointer(&x[i].tophash)) = math.MaxUint64
+		*(*uint64)(unsafe.Pointer(&x[i].tophash)) = allEmpty
 	}
 
 	return &Uint64Map{
