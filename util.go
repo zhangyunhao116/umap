@@ -23,8 +23,6 @@ func add(p unsafe.Pointer, x uintptr) unsafe.Pointer {
 	return unsafe.Pointer(uintptr(p) + x)
 }
 
-type bitmask64 uint64
-
 // growThresholdUint64 returns (capcity - capcity*loadFactor)
 func growThresholdUint64(bucketmask uint64) int {
 	// Same as (capcity - capcity*loadFactor), but faster.

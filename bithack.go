@@ -21,36 +21,50 @@ func makeUint64BucketArray(size int) unsafe.Pointer {
 	return (*sliceHeader)(unsafe.Pointer(&x)).Data
 }
 
-func (b *bmapuint64) MatchEmptyOrDeleted() bitmask64 {
-	// The high bit is set for both empty slot and deleted slot.
-	ctrl := littleEndianBytesToUint64(b.tophash)
-	return bitmask64(msbs & ctrl)
-}
-
-func (b *bmapuint64) MatchEmpty() bitmask64 {
-	// Same as b.MatchTopHash(emptySlot), but faster.
-	//
-	// The high bit is set for both empty slot and deleted slot.
-	// (ctrl & emptyOrDeletedMask) get all empty or deleted slots.
-	// (ctrl << 1) clears the high bit for deletedSlot.
-	// ANDing them we can get all the empty slots.
-	ctrl := littleEndianBytesToUint64(b.tophash)
-	return bitmask64((ctrl << 1) & ctrl & msbs)
-}
-
 func matchTopHash(tophash [bucketCnt]uint8, top uint8) bitmask64 {
 	ctrl := littleEndianBytesToUint64(tophash)
 	cmp := ctrl ^ (lsbs * uint64(top))
 	return bitmask64((cmp - lsbs) & ^cmp & msbs)
 }
 
-func (b *bmapuint64) PrepareSameSizeGrow() {
+func matchEmpty(tophash [bucketCnt]uint8) bitmask64 {
+	// Same as b.MatchTopHash(emptySlot), but faster.
+	//
+	// The high bit is set for both empty slot and deleted slot.
+	// (ctrl & emptyOrDeletedMask) get all empty or deleted slots.
+	// (ctrl << 1) clears the high bit for deletedSlot.
+	// ANDing them we can get all the empty slots.
+	ctrl := littleEndianBytesToUint64(tophash)
+	return bitmask64((ctrl << 1) & ctrl & msbs)
+}
+
+func matchEmptyOrDeleted(tophash [bucketCnt]uint8) bitmask64 {
+	// The high bit is set for both empty slot and deleted slot.
+	ctrl := littleEndianBytesToUint64(tophash)
+	return bitmask64(msbs & ctrl)
+}
+
+func prepareSameSizeGrow(tophash [bucketCnt]uint8) [bucketCnt]uint8 {
 	// Convert Deleted to Empty and Full to Deleted.
-	ctrl := littleEndianBytesToUint64(b.tophash)
+	ctrl := littleEndianBytesToUint64(tophash)
 	full := ^ctrl & msbs
 	full = ^full + (full >> 7)
-	b.tophash = littleEndianUint64ToBytes(full)
+	return littleEndianUint64ToBytes(full)
 }
+
+func (b *bmapuint64) MatchEmptyOrDeleted() bitmask64 {
+	return matchEmptyOrDeleted(b.tophash)
+}
+
+func (b *bmapuint64) MatchEmpty() bitmask64 {
+	return matchEmpty(b.tophash)
+}
+
+func (b *bmapuint64) PrepareSameSizeGrow() {
+	b.tophash = prepareSameSizeGrow(b.tophash)
+}
+
+type bitmask64 uint64
 
 func (b bitmask64) AnyMatch() bool {
 	return b != 0
