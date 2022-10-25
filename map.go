@@ -255,7 +255,7 @@ func (h *Uint64Map) Range(f func(k uint64, v uint64) bool) {
 	for indexStride < uint64(bucketNum) {
 		bucket := bmapPointer(initBuckets, uint(index))
 		for sloti := 0; sloti < bucketCnt; sloti++ {
-			if isEmpty(bucket.tophash[sloti]) {
+			if isDeletedOrEmpty(bucket.tophash[sloti]) {
 				continue
 			}
 			kv := bucket.data[sloti]
@@ -382,15 +382,11 @@ func (h *Uint64Map) grow() {
 
 	for index := uint64(0); index < oldBucketnum; index++ {
 		bucket := bmapPointer(h.buckets, uint(index))
-		status := matchFull(bucket.tophash)
-		for {
-			sloti := status.NextMatch()
-			if sloti >= bucketCnt {
-				break
+		for i := 0; i < bucketCnt; i++ {
+			if isFull(bucket.tophash[i]) {
+				kv := bucket.data[i]
+				newMap.storeWithoutGrow(kv.key, kv.value)
 			}
-			kv := bucket.data[sloti]
-			newMap.storeWithoutGrow(kv.key, kv.value)
-			status.RemoveLowestBit()
 		}
 	}
 
@@ -408,7 +404,12 @@ func tophash(v uint64) uint8 {
 	return uint8(v >> 57)
 }
 
-// isEmpty returns true if the item is deleted or empty.
-func isEmpty(v uint8) bool {
+// isDeletedOrEmpty returns true if the slot is deleted or empty.
+func isDeletedOrEmpty(v uint8) bool {
 	return v >= 128
+}
+
+// isFull returns true if the slot is full.
+func isFull(v uint8) bool {
+	return v < 128
 }

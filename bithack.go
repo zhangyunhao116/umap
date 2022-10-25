@@ -44,12 +44,6 @@ func matchTopHash(tophash [bucketCnt]uint8, top uint8) bitmask64 {
 	return bitmask64((cmp - lsbs) & ^cmp & msbs)
 }
 
-func matchFull(tophash [bucketCnt]uint8) bitmask64 {
-	// If a slot is neither empty nor deleted, then it must be FUll.
-	ctrl := littleEndianBytesToUint64(tophash)
-	return bitmask64(msbs & ^ctrl)
-}
-
 func (b *bmapuint64) PrepareSameSizeGrow() {
 	// Convert Deleted to Empty and Full to Deleted.
 	ctrl := littleEndianBytesToUint64(b.tophash)
