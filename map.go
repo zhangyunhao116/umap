@@ -6,11 +6,15 @@ import (
 )
 
 const (
-	emptySlot          uint8  = 0b1111_1111
-	deletedSlot        uint8  = 0b1000_0000
-	emptyOrDeletedMask uint64 = 0x8080_8080_8080_8080
+	emptySlot   uint8 = 0b1111_1111
+	deletedSlot uint8 = 0b1000_0000
 
-	allEmpty uint64 = math.MaxUint64
+	msbs uint64 = 0x8080_8080_8080_8080
+	lsbs uint64 = 0x0101_0101_0101_0101
+
+	allEmpty uint64 = uint64(emptySlot) + uint64(emptySlot)<<8 + uint64(emptySlot)<<16 +
+		uint64(emptySlot)<<24 + uint64(emptySlot)<<32 + uint64(emptySlot)<<40 +
+		uint64(emptySlot)<<48 + uint64(emptySlot)<<56
 
 	// LoadFactor.
 	// 0 -> invalid

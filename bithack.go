@@ -5,10 +5,6 @@ import (
 	"unsafe"
 )
 
-// This implementation assumes that
-// - The deletedSlot must be 0b1000_0000.
-// - The emptySlot must be 0b1111_1111.
-
 const (
 	bucketCnt = 8
 )
@@ -27,37 +23,37 @@ func makeUint64BucketArray(size int) unsafe.Pointer {
 
 func (b *bmapuint64) MatchEmptyOrDeleted() bitmask64 {
 	// The high bit is set for both empty slot and deleted slot.
-	tophashs := littleEndianBytesToUint64(b.tophash)
-	return bitmask64(emptyOrDeletedMask & tophashs)
+	ctrl := littleEndianBytesToUint64(b.tophash)
+	return bitmask64(msbs & ctrl)
 }
 
 func (b *bmapuint64) MatchEmpty() bitmask64 {
 	// Same as b.MatchTopHash(emptySlot), but faster.
 	//
 	// The high bit is set for both empty slot and deleted slot.
-	// (tophashs & emptyOrDeletedMask) get all empty or deleted slots.
-	// (tophashs << 1) clears the high bit for deletedSlot.
+	// (ctrl & emptyOrDeletedMask) get all empty or deleted slots.
+	// (ctrl << 1) clears the high bit for deletedSlot.
 	// ANDing them we can get all the empty slots.
-	tophashs := littleEndianBytesToUint64(b.tophash)
-	return bitmask64((tophashs << 1) & tophashs & emptyOrDeletedMask)
+	ctrl := littleEndianBytesToUint64(b.tophash)
+	return bitmask64((ctrl << 1) & ctrl & msbs)
 }
 
 func matchTopHash(tophash [bucketCnt]uint8, top uint8) bitmask64 {
-	tophashs := littleEndianBytesToUint64(tophash)
-	cmp := tophashs ^ (uint64(0x0101_0101_0101_0101) * uint64(top))
-	return bitmask64((cmp - 0x0101_0101_0101_0101) & ^cmp & 0x8080_8080_8080_8080)
+	ctrl := littleEndianBytesToUint64(tophash)
+	cmp := ctrl ^ (lsbs * uint64(top))
+	return bitmask64((cmp - lsbs) & ^cmp & msbs)
 }
 
 func matchFull(tophash [bucketCnt]uint8) bitmask64 {
 	// If a slot is neither empty nor deleted, then it must be FUll.
-	tophashs := littleEndianBytesToUint64(tophash)
-	return bitmask64(emptyOrDeletedMask & ^tophashs)
+	ctrl := littleEndianBytesToUint64(tophash)
+	return bitmask64(msbs & ^ctrl)
 }
 
 func (b *bmapuint64) PrepareSameSizeGrow() {
 	// Convert Deleted to Empty and Full to Deleted.
-	tophashs := littleEndianBytesToUint64(b.tophash)
-	full := ^tophashs & emptyOrDeletedMask
+	ctrl := littleEndianBytesToUint64(b.tophash)
+	full := ^ctrl & msbs
 	full = ^full + (full >> 7)
 	b.tophash = littleEndianUint64ToBytes(full)
 }
