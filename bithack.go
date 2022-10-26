@@ -23,8 +23,8 @@ func makeUint64BucketArray(size int) unsafe.Pointer {
 
 func matchTopHash(tophash [bucketCnt]uint8, top uint8) bitmask64 {
 	ctrl := littleEndianBytesToUint64(tophash)
-	cmp := ctrl ^ (lsbs * uint64(top))
-	return bitmask64((cmp - lsbs) & ^cmp & msbs)
+	x := ctrl ^ (lsbs * uint64(top))
+	return bitmask64((x - lsbs) & ^x & msbs)
 }
 
 func matchEmpty(tophash [bucketCnt]uint8) bitmask64 {
@@ -35,21 +35,21 @@ func matchEmpty(tophash [bucketCnt]uint8) bitmask64 {
 	// (ctrl << 1) clears the high bit for deletedSlot.
 	// ANDing them we can get all the empty slots.
 	ctrl := littleEndianBytesToUint64(tophash)
-	return bitmask64((ctrl << 1) & ctrl & msbs)
+	return bitmask64((ctrl & (^ctrl << 6) & msbs))
 }
 
 func matchEmptyOrDeleted(tophash [bucketCnt]uint8) bitmask64 {
 	// The high bit is set for both empty slot and deleted slot.
 	ctrl := littleEndianBytesToUint64(tophash)
-	return bitmask64(msbs & ctrl)
+	return bitmask64(ctrl & (^ctrl << 7) & msbs)
 }
 
 func prepareSameSizeGrow(tophash [bucketCnt]uint8) [bucketCnt]uint8 {
 	// Convert Deleted to Empty and Full to Deleted.
 	ctrl := littleEndianBytesToUint64(tophash)
-	full := ^ctrl & msbs
-	full = ^full + (full >> 7)
-	return littleEndianUint64ToBytes(full)
+	x := ctrl & msbs
+	res := (^x + (x >> 7)) & (^lsbs)
+	return littleEndianUint64ToBytes(res)
 }
 
 func (b *bmapuint64) MatchEmptyOrDeleted() bitmask64 {

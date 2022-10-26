@@ -5,8 +5,9 @@ import (
 )
 
 const (
-	emptySlot   uint8 = 0b1111_1111
-	deletedSlot uint8 = 0b1000_0000
+	emptySlot    uint8 = 0b1000_0000
+	deletedSlot  uint8 = 0b1111_1110
+	sentinelSlot uint8 = 0b1111_1111
 
 	msbs uint64 = 0x8080_8080_8080_8080
 	lsbs uint64 = 0x0101_0101_0101_0101
