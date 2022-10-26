@@ -5,9 +5,9 @@ import (
 )
 
 const (
-	emptySlot    uint8 = 0b1000_0000
-	deletedSlot  uint8 = 0b1111_1110
-	sentinelSlot uint8 = 0b1111_1111
+	emptySlot     uint8 = 0b1000_0000
+	deletedSlot   uint8 = 0b1111_1110
+	evacuatedSlot uint8 = 0b1111_1111
 
 	msbs uint64 = 0x8080_8080_8080_8080
 	lsbs uint64 = 0x0101_0101_0101_0101
@@ -402,6 +402,11 @@ func (h *Uint64Map) needGrow() bool {
 
 func tophash(v uint64) uint8 {
 	return uint8(v >> 57)
+}
+
+// isEvacuated returns true if the slot is evacuted.
+func isEvacuated(v uint8) bool {
+	return v == evacuatedSlot
 }
 
 // isDeletedOrEmpty returns true if the slot is deleted or empty.

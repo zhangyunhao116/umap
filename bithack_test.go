@@ -4,6 +4,38 @@ import (
 	"testing"
 )
 
+func TestBitHackEvacuate(t *testing.T) {
+	s := [8]uint8{evacuatedSlot, evacuatedSlot, evacuatedSlot, evacuatedSlot, evacuatedSlot, evacuatedSlot, evacuatedSlot, evacuatedSlot}
+	status := matchEmpty(s)
+	if status.AnyMatch() {
+		t.Fatal()
+	}
+
+	s = [8]uint8{evacuatedSlot, evacuatedSlot, evacuatedSlot, evacuatedSlot, evacuatedSlot, evacuatedSlot, evacuatedSlot, evacuatedSlot}
+	status = matchEmptyOrDeleted(s)
+	if status.AnyMatch() {
+		t.Fatal()
+	}
+
+	s = [8]uint8{evacuatedSlot, evacuatedSlot, evacuatedSlot, evacuatedSlot, emptySlot, evacuatedSlot, evacuatedSlot, evacuatedSlot}
+	status = matchEmpty(s)
+	if !status.AnyMatch() {
+		t.Fatal()
+	}
+
+	s = [8]uint8{evacuatedSlot, evacuatedSlot, deletedSlot, evacuatedSlot, emptySlot, evacuatedSlot, evacuatedSlot, evacuatedSlot}
+	status = matchEmpty(s)
+	if !status.AnyMatch() {
+		t.Fatal()
+	}
+
+	s = [8]uint8{evacuatedSlot, evacuatedSlot, deletedSlot, evacuatedSlot, emptySlot, evacuatedSlot, evacuatedSlot, evacuatedSlot}
+	status = matchEmptyOrDeleted(s)
+	if !status.shouldHaveMatches(2, 4) {
+		t.Fatal()
+	}
+}
+
 func TestBitHackMatchTophash(t *testing.T) {
 	s := [8]uint8{emptySlot, 12, deletedSlot, 1, 13, 14}
 	status := matchTopHash(s, 12)
