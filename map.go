@@ -32,6 +32,8 @@ type Uint64Map struct {
 	growthLeft int
 	bucketmask uint64
 	buckets    unsafe.Pointer
+	oldbuckets unsafe.Pointer
+	nevacuate  uint
 }
 
 // bmapuint64 represents a bucket.
@@ -190,6 +192,31 @@ func (h *Uint64Map) storeWithoutGrow(key uint64, value uint64) {
 		sloti := status.NextMatch()
 		if sloti < bucketCnt {
 			bucket.tophash[sloti] = tophash
+			bucket.data[sloti].key = key
+			bucket.data[sloti].value = value
+			return
+		}
+		// No idle slot, update index then go to next bucket.
+		indexStride += 1
+		index += indexStride
+		index &= indexMask
+	}
+}
+
+func mapassignWithoutGrow(hashres, mask uint64, buckets unsafe.Pointer, key, value uint64) {
+	top := tophash(hashres)
+
+	indexMask := uint64(mask)
+	index := hashres & indexMask
+	indexStride := uint64(0)
+
+	for {
+		bucket := bmapPointer(buckets, uint(index))
+		// Just checking the empty slot is fine, but using this function is faster.
+		status := bucket.MatchEmptyOrDeleted()
+		sloti := status.NextMatch()
+		if sloti < bucketCnt {
+			bucket.tophash[sloti] = top
 			bucket.data[sloti].key = key
 			bucket.data[sloti].value = value
 			return
@@ -375,24 +402,22 @@ func (h *Uint64Map) grow() {
 	newBucketnum := oldBucketnum * 2
 	newBucketMask := newBucketnum - 1
 	newCap := newBucketnum * bucketCnt
-	newMap := &Uint64Map{
-		buckets:    makeUint64BucketArray(int(newBucketnum)),
-		bucketmask: newBucketMask,
-	}
 
+	buckets := makeUint64BucketArray(int(newBucketnum))
 	for index := uint64(0); index < oldBucketnum; index++ {
 		bucket := bmapPointer(h.buckets, uint(index))
 		for i := 0; i < bucketCnt; i++ {
 			if isFull(bucket.tophash[i]) {
 				kv := bucket.data[i]
-				newMap.storeWithoutGrow(kv.key, kv.value)
+				hashres := hashUint64(kv.key)
+				mapassignWithoutGrow(hashres, newBucketMask, buckets, kv.key, kv.value)
 			}
 		}
 	}
 
 	h.bucketmask = newBucketMask
 	// h.items is the same.
-	h.buckets = newMap.buckets
+	h.buckets = buckets
 	h.growthLeft = int(newCap) - h.count
 }
 
