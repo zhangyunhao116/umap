@@ -6,6 +6,14 @@ import (
 	"testing"
 )
 
+func TestQQQ(t *testing.T) {
+	m := New64(0)
+	for i := uint64(0); i < 1000000; i++ {
+		m.Store(i, i)
+	}
+	println(m.Load(1000))
+}
+
 func TestCorrectness(t *testing.T) {
 	m := New64(0)
 	if m.Len() != 0 {

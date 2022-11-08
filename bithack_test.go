@@ -4,6 +4,12 @@ import (
 	"testing"
 )
 
+func TestConst(t *testing.T) {
+	if !matchEmpty(littleEndianUint64ToBytes(allEvacuatedWithEmpty)).AnyMatch() {
+		t.Fatal()
+	}
+}
+
 func TestBitHackEvacuate(t *testing.T) {
 	s := [8]uint8{evacuatedSlot, evacuatedSlot, evacuatedSlot, evacuatedSlot, evacuatedSlot, evacuatedSlot, evacuatedSlot, evacuatedSlot}
 	status := matchEmpty(s)

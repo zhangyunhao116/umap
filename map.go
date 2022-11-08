@@ -15,6 +15,12 @@ const (
 	allEmpty uint64 = uint64(emptySlot) + uint64(emptySlot)<<8 + uint64(emptySlot)<<16 +
 		uint64(emptySlot)<<24 + uint64(emptySlot)<<32 + uint64(emptySlot)<<40 +
 		uint64(emptySlot)<<48 + uint64(emptySlot)<<56
+	allEvacuated uint64 = uint64(evacuatedSlot) + uint64(evacuatedSlot)<<8 + uint64(evacuatedSlot)<<16 +
+		uint64(evacuatedSlot)<<24 + uint64(evacuatedSlot)<<32 + uint64(evacuatedSlot)<<40 +
+		uint64(evacuatedSlot)<<48 + uint64(evacuatedSlot)<<56
+	allEvacuatedWithEmpty uint64 = uint64(evacuatedSlot) + uint64(evacuatedSlot)<<8 + uint64(evacuatedSlot)<<16 +
+		uint64(evacuatedSlot)<<24 + uint64(evacuatedSlot)<<32 + uint64(evacuatedSlot)<<40 +
+		uint64(evacuatedSlot)<<48 + uint64(emptySlot)<<56
 
 	// LoadFactor.
 	// 0 -> invalid
@@ -33,7 +39,7 @@ type Uint64Map struct {
 	bucketmask uint64
 	buckets    unsafe.Pointer
 	oldbuckets unsafe.Pointer
-	nevacuate  uint
+	nevacuate  uint64 // progress counter for evacuation (buckets less than this have been evacuated)
 }
 
 // bmapuint64 represents a bucket.
@@ -79,12 +85,28 @@ func (h *Uint64Map) Load(key uint64) (value uint64, ok bool) {
 	hashres := hashUint64(uint64(key))
 	tophash := tophash(hashres)
 
-	indexMask := uint64(h.bucketmask)
-	index := hashres & indexMask
-	indexStride := uint64(0)
+	var (
+		b                             unsafe.Pointer
+		index, indexMask, indexStride uint64
+	)
+	b = h.buckets
+	indexMask = h.bucketmask
+	if h.oldbuckets != nil {
+		om := indexMask >> 1
+		ob := bmapPointer(h.oldbuckets, uint(hashres)&uint(om))
+		if !isEvacuated(ob.tophash[0]) {
+			b = h.oldbuckets
+			indexMask = om
+		}
+	}
+	index = hashres & indexMask
+
+	// indexMask := uint64(h.bucketmask)
+	// index := hashres & indexMask
+	// indexStride := uint64(0)
 
 	for {
-		bucket := bmapPointer(h.buckets, uint(index))
+		bucket := bmapPointer(b, uint(index))
 		status := matchTopHash(bucket.tophash, tophash)
 		for {
 			sloti := status.NextMatch()
@@ -108,16 +130,16 @@ func (h *Uint64Map) Load(key uint64) (value uint64, ok bool) {
 
 // Store sets the value for a key.
 func (h *Uint64Map) Store(key uint64, value uint64) {
-	if h.needGrow() {
-		h.growWork()
-	}
-
 	hashres := hashUint64(uint64(key))
 	tophash := tophash(hashres)
-
+again:
 	indexMask := uint64(h.bucketmask)
 	index := hashres & indexMask
 	indexStride := uint64(0)
+
+	if h.growing() {
+		growWork(h, index)
+	}
 
 	var (
 		bucket *bmapuint64
@@ -146,6 +168,11 @@ func (h *Uint64Map) Store(key uint64, value uint64) {
 		indexStride += 1
 		index += indexStride
 		index &= indexMask
+	}
+
+	if !h.growing() && h.needGrow() {
+		hashGrow(h)
+		goto again // Growing the table invalidates everything, so try again
 	}
 
 	// The key is not in the map.
@@ -203,6 +230,93 @@ func (h *Uint64Map) storeWithoutGrow(key uint64, value uint64) {
 	}
 }
 
+func hashGrow(h *Uint64Map) {
+	oldCap := (h.bucketmask + 1) * bucketCnt
+	if uint64(h.count) < oldCap>>1 {
+		// Too many slots are locked by deleted items.
+		h.sameSizeGrow()
+	} else {
+		// Grow bigger.
+		oldBucketnum := h.bucketmask + 1
+		newBucketnum := oldBucketnum * 2
+		newBucketMask := newBucketnum - 1
+		newCap := newBucketnum * bucketCnt
+		newBuckets := makeUint64BucketArray(int(newBucketnum))
+
+		h.oldbuckets = h.buckets
+		h.buckets = newBuckets
+
+		h.bucketmask = newBucketMask
+		h.growthLeft = int(newCap) - h.count
+		h.nevacuate = 0
+
+	}
+}
+
+func evacuate(h *Uint64Map, oldbucket uint64) {
+	indexMask := uint64(h.oldbucketmask())
+	index := oldbucket
+	indexStride := uint64(0)
+
+	newbit := h.noldbuckets()
+
+	// Evacuate this bucket chain.
+	// We evauate each bucket until we found a empty slot.
+	for {
+		b := bmapPointer(h.oldbuckets, uint(index))
+		bucketHasEmpty := matchEmpty(b.tophash).AnyMatch()
+		// Evacuate this bucket.
+		if !isEvacuated(b.tophash[0]) {
+			for i := 0; i < bucketCnt; i++ {
+				if isFull(b.tophash[i]) {
+					kv := b.data[i]
+					hashres := hashUint64(kv.key)
+					mapassignWithoutGrow(hashres, h.bucketmask, h.buckets, kv.key, kv.value)
+				}
+			}
+			if bucketHasEmpty {
+				*(*uint64)(unsafe.Pointer(&b.tophash)) = allEvacuatedWithEmpty
+			} else {
+				*(*uint64)(unsafe.Pointer(&b.tophash)) = allEvacuated
+			}
+		}
+		if bucketHasEmpty {
+			break
+		}
+		// Update index, go to next bucket.
+		indexStride += 1
+		index += indexStride
+		index &= indexMask
+	}
+
+	if oldbucket == h.nevacuate {
+		advanceEvacuationMark(h, newbit)
+	}
+}
+
+func advanceEvacuationMark(h *Uint64Map, newbit uint64) {
+	h.nevacuate++
+	// Experiments suggest that 1024 is overkill by at least an order of magnitude.
+	// Put it in there as a safeguard anyway, to ensure O(1) behavior.
+	stop := h.nevacuate + 1024
+	if stop > newbit {
+		stop = newbit
+	}
+	for h.nevacuate != stop && bucketEvacuated(h, h.nevacuate) {
+		h.nevacuate++
+	}
+
+	if h.nevacuate == newbit { // newbit == # of oldbuckets
+		// Growing is all done. Free old main bucket array.
+		h.oldbuckets = nil
+	}
+}
+
+func bucketEvacuated(h *Uint64Map, bucket uint64) bool {
+	b := bmapPointer(h.oldbuckets, uint(bucket))
+	return isEvacuated(b.tophash[0])
+}
+
 func mapassignWithoutGrow(hashres, mask uint64, buckets unsafe.Pointer, key, value uint64) {
 	top := tophash(hashres)
 
@@ -225,6 +339,29 @@ func mapassignWithoutGrow(hashres, mask uint64, buckets unsafe.Pointer, key, val
 		indexStride += 1
 		index += indexStride
 		index &= indexMask
+	}
+}
+
+// noldbuckets calculates the number of buckets prior to the current map growth.
+func (h *Uint64Map) noldbuckets() uint64 {
+	oldMask := h.oldbucketmask()
+	return oldMask + 1
+}
+
+func (h *Uint64Map) oldbucketmask() uint64 {
+	return h.bucketmask >> 1
+}
+
+func growWork(h *Uint64Map, bucket uint64) {
+	// The bucket is generated from the new mask.
+
+	// make sure we evacuate the oldbucket corresponding
+	// to the bucket we're about to use
+	evacuate(h, bucket&h.oldbucketmask())
+
+	// evacuate one more oldbucket to make progress on growing
+	if h.growing() {
+		evacuate(h, h.nevacuate)
 	}
 }
 
@@ -302,16 +439,6 @@ func (h *Uint64Map) Range(f func(k uint64, v uint64) bool) {
 // Len returns the length of the hashmap.
 func (h *Uint64Map) Len() int {
 	return int(h.count)
-}
-
-func (h *Uint64Map) growWork() {
-	oldCap := (h.bucketmask + 1) * bucketCnt
-	if uint64(h.count) < oldCap>>1 {
-		// Too many slots are locked by deleted items.
-		h.sameSizeGrow()
-	} else {
-		h.grow()
-	}
 }
 
 func (h *Uint64Map) sameSizeGrow() {
@@ -397,28 +524,8 @@ func (h *Uint64Map) findFirstNotNull(hashres uint64) (bucket *bmapuint64, bucket
 	}
 }
 
-func (h *Uint64Map) grow() {
-	oldBucketnum := h.bucketmask + 1
-	newBucketnum := oldBucketnum * 2
-	newBucketMask := newBucketnum - 1
-	newCap := newBucketnum * bucketCnt
-
-	buckets := makeUint64BucketArray(int(newBucketnum))
-	for index := uint64(0); index < oldBucketnum; index++ {
-		bucket := bmapPointer(h.buckets, uint(index))
-		for i := 0; i < bucketCnt; i++ {
-			if isFull(bucket.tophash[i]) {
-				kv := bucket.data[i]
-				hashres := hashUint64(kv.key)
-				mapassignWithoutGrow(hashres, newBucketMask, buckets, kv.key, kv.value)
-			}
-		}
-	}
-
-	h.bucketmask = newBucketMask
-	// h.items is the same.
-	h.buckets = buckets
-	h.growthLeft = int(newCap) - h.count
+func (h *Uint64Map) growing() bool {
+	return h.oldbuckets != nil
 }
 
 func (h *Uint64Map) needGrow() bool {
