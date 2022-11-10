@@ -17,7 +17,6 @@ func TestQQQ(t *testing.T) {
 }
 
 func testQQQ(t *testing.T) {
-
 	const count = 100
 	m1 := New64(0)
 	m2 := make(map[uint64]uint64)

@@ -12,6 +12,11 @@ const (
 	msbs uint64 = 0x8080_8080_8080_8080
 	lsbs uint64 = 0x0101_0101_0101_0101
 
+	iterator     = 1 // there may be an iterator using buckets
+	oldIterator  = 2 // there may be an iterator using oldbuckets
+	hashWriting  = 4 // a goroutine is writing to the map
+	sameSizeGrow = 8 // the current map growth is to a new map of the same size
+
 	allEmpty uint64 = uint64(emptySlot) + uint64(emptySlot)<<8 + uint64(emptySlot)<<16 +
 		uint64(emptySlot)<<24 + uint64(emptySlot)<<32 + uint64(emptySlot)<<40 +
 		uint64(emptySlot)<<48 + uint64(emptySlot)<<56
@@ -40,6 +45,7 @@ type Uint64Map struct {
 	buckets    unsafe.Pointer
 	oldbuckets unsafe.Pointer
 	nevacuate  uint64 // progress counter for evacuation (buckets less than this have been evacuated)
+	flags      uint8
 }
 
 // bmapuint64 represents a bucket.
@@ -143,8 +149,14 @@ oldbucket:
 
 // Store sets the value for a key.
 func (h *Uint64Map) Store(key uint64, value uint64) {
+	if h.flags&hashWriting != 0 {
+		panic("concurrent map writes")
+	}
 	hashres := hashUint64(uint64(key))
 	tophash := tophash(hashres)
+	// Set hashWriting after calling t.hasher, since t.hasher may panic,
+	// in which case we have not actually done a write.
+	h.flags ^= hashWriting
 again:
 	indexMask := uint64(h.bucketmask)
 	index := hashres & indexMask
@@ -170,7 +182,7 @@ again:
 			if bucket.data[sloti].key == key {
 				// Found.
 				bucket.data[sloti].value = value
-				return
+				goto done
 			}
 			status.RemoveLowestBit()
 		}
@@ -203,7 +215,7 @@ again:
 			bucket.data[sloti].value = value
 			h.growthLeft -= 1
 			h.count += 1
-			return
+			goto done
 		}
 		// No idle slot
 		// Update index, go to next bucket.
@@ -211,6 +223,11 @@ again:
 		index += indexStride
 		index &= indexMask
 	}
+done:
+	if h.flags&hashWriting == 0 {
+		panic("concurrent map writes")
+	}
+	h.flags &^= hashWriting
 }
 
 // storeWithoutGrow inserts values into the hashmap without growing.
