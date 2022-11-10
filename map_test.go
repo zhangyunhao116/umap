@@ -7,11 +7,76 @@ import (
 )
 
 func TestQQQ(t *testing.T) {
-	m := New64(0)
-	for i := uint64(0); i < 1000000; i++ {
-		m.Store(i, i)
+	for i := 0; i < 100000; i++ {
+		rand.Seed(int64(i))
+		// println("SEED", i)
+		testQQQ(t)
 	}
-	println(m.Load(1000))
+	// rand.Seed(131)
+	// testQQQ(t)
+}
+
+func testQQQ(t *testing.T) {
+
+	const count = 100
+	m1 := New64(0)
+	m2 := make(map[uint64]uint64)
+	for i := 0; i < count; i++ {
+		choose := rand.Intn(100)
+		rk, rv := uint64(rand.Int63n(count)), uint64(rand.Int63())
+		if choose >= 50 {
+			m1.Store(rk, rv)
+			m2[rk] = rv
+		} else if choose <= 10 {
+			m1.Delete(rk)
+			delete(m2, rk)
+		} else if choose == 27 && rand.Intn(100) == 0 {
+			// var (
+			// 	tmp1 = make(map[uint64]uint64)
+			// 	tmp2 = make(map[uint64]uint64)
+			// )
+			// m1.Range(func(key, value uint64) bool {
+			// 	tmp1[key] = value
+			// 	return true
+			// })
+			// for key, value := range m2 {
+			// 	tmp2[key] = value
+			// }
+			// var x, y int
+			// for range tmp1 {
+			// 	x++
+			// }
+			// for range tmp2 {
+			// 	y++
+			// }
+			// if x != y {
+			// 	t.Fatal(x, y)
+			// }
+			// for k2, v2 := range tmp1 {
+			// 	v1, ok := tmp2[k2]
+			// 	if !ok || v1 != v2 {
+			// 		t.Fatal("invalid key value", k2, v2, v1, ok)
+			// 	}
+			// }
+			// for k2, v2 := range tmp2 {
+			// 	v1, ok := tmp1[k2]
+			// 	if !ok || v1 != v2 {
+			// 		t.Fatal("invalid key value", k2, v2, v1, ok)
+			// 	}
+			// }
+		} else {
+			// Load
+			v1, ok1 := m1.Load(rk)
+			v2, ok2 := m2[rk]
+			if ok1 != ok2 || v1 != v2 {
+				m1.debug()
+				t.Fatalf("key:%v got:(%v,%v) expect:(%v,%v)", rk, v1, ok1, v2, ok2)
+			}
+		}
+		if m1.Len() != len(m2) {
+			t.Fatal(m1.Len(), len(m2))
+		}
+	}
 }
 
 func TestCorrectness(t *testing.T) {
@@ -111,39 +176,39 @@ func TestSameKeyValue(t *testing.T) {
 			m1.Delete(rk)
 			delete(m2, rk)
 		} else if choose == 27 && rand.Intn(100) == 0 {
-			var (
-				tmp1 = make(map[uint64]uint64)
-				tmp2 = make(map[uint64]uint64)
-			)
-			m1.Range(func(key, value uint64) bool {
-				tmp1[key] = value
-				return true
-			})
-			for key, value := range m2 {
-				tmp2[key] = value
-			}
-			var x, y int
-			for range tmp1 {
-				x++
-			}
-			for range tmp2 {
-				y++
-			}
-			if x != y {
-				t.Fatal(x, y)
-			}
-			for k2, v2 := range tmp1 {
-				v1, ok := tmp2[k2]
-				if !ok || v1 != v2 {
-					t.Fatal("invalid key value", k2, v2, v1, ok)
-				}
-			}
-			for k2, v2 := range tmp2 {
-				v1, ok := tmp1[k2]
-				if !ok || v1 != v2 {
-					t.Fatal("invalid key value", k2, v2, v1, ok)
-				}
-			}
+			// var (
+			// 	tmp1 = make(map[uint64]uint64)
+			// 	tmp2 = make(map[uint64]uint64)
+			// )
+			// m1.Range(func(key, value uint64) bool {
+			// 	tmp1[key] = value
+			// 	return true
+			// })
+			// for key, value := range m2 {
+			// 	tmp2[key] = value
+			// }
+			// var x, y int
+			// for range tmp1 {
+			// 	x++
+			// }
+			// for range tmp2 {
+			// 	y++
+			// }
+			// if x != y {
+			// 	t.Fatal(x, y)
+			// }
+			// for k2, v2 := range tmp1 {
+			// 	v1, ok := tmp2[k2]
+			// 	if !ok || v1 != v2 {
+			// 		t.Fatal("invalid key value", k2, v2, v1, ok)
+			// 	}
+			// }
+			// for k2, v2 := range tmp2 {
+			// 	v1, ok := tmp1[k2]
+			// 	if !ok || v1 != v2 {
+			// 		t.Fatal("invalid key value", k2, v2, v1, ok)
+			// 	}
+			// }
 		} else {
 			// Load
 			v1, ok1 := m1.Load(rk)

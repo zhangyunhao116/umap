@@ -1,6 +1,8 @@
 package umap
 
-import "math/bits"
+import (
+	"math/bits"
+)
 
 // Using FxHash: https://searchfox.org/mozilla-central/rev/633345116df55e2d37be9be6555aa739656c5a7d/mfbt/HashFunctions.h
 // Benchmarks for different hash algorithms: https://github.com/tkaitchuck/aHash/blob/master/FAQ.md#how-is-ahash-so-fast

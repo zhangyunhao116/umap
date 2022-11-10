@@ -85,28 +85,41 @@ func (h *Uint64Map) Load(key uint64) (value uint64, ok bool) {
 	hashres := hashUint64(uint64(key))
 	tophash := tophash(hashres)
 
-	var (
-		b                             unsafe.Pointer
-		index, indexMask, indexStride uint64
-	)
-	b = h.buckets
-	indexMask = h.bucketmask
-	if h.oldbuckets != nil {
-		om := indexMask >> 1
-		ob := bmapPointer(h.oldbuckets, uint(hashres)&uint(om))
-		if !isEvacuated(ob.tophash[0]) {
-			b = h.oldbuckets
-			indexMask = om
-		}
-	}
-	index = hashres & indexMask
-
-	// indexMask := uint64(h.bucketmask)
-	// index := hashres & indexMask
-	// indexStride := uint64(0)
+	indexMask := uint64(h.bucketmask)
+	index := hashres & indexMask
+	indexStride := uint64(0)
 
 	for {
-		bucket := bmapPointer(b, uint(index))
+		bucket := bmapPointer(h.buckets, uint(index))
+		status := matchTopHash(bucket.tophash, tophash)
+		for {
+			sloti := status.NextMatch()
+			if sloti >= bucketCnt {
+				break
+			}
+			if bucket.data[sloti].key == key {
+				return bucket.data[sloti].value, true
+			}
+			status.RemoveLowestBit()
+		}
+		if bucket.MatchEmpty().AnyMatch() {
+			if h.oldbuckets != nil {
+				goto oldbucket
+			}
+			return
+		}
+		// Update index, go to next bucket.
+		indexStride += 1
+		index += indexStride
+		index &= indexMask
+	}
+oldbucket:
+	indexMask = uint64(h.oldbucketmask())
+	index = hashres & indexMask
+	indexStride = uint64(0)
+
+	for {
+		bucket := bmapPointer(h.oldbuckets, uint(index))
 		status := matchTopHash(bucket.tophash, tophash)
 		for {
 			sloti := status.NextMatch()
@@ -249,13 +262,12 @@ func hashGrow(h *Uint64Map) {
 		h.bucketmask = newBucketMask
 		h.growthLeft = int(newCap) - h.count
 		h.nevacuate = 0
-
 	}
 }
 
 func evacuate(h *Uint64Map, oldbucket uint64) {
 	indexMask := uint64(h.oldbucketmask())
-	index := oldbucket
+	index := oldbucket & indexMask
 	indexStride := uint64(0)
 
 	newbit := h.noldbuckets()
@@ -373,6 +385,10 @@ func (h *Uint64Map) Delete(key uint64) {
 	indexMask := uint64(h.bucketmask)
 	index := hashres & indexMask
 	indexStride := uint64(0)
+
+	if h.growing() {
+		growWork(h, index)
+	}
 
 	for {
 		bucket := bmapPointer(h.buckets, uint(index))

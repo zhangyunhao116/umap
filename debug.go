@@ -9,10 +9,10 @@ func (h *Uint64Map) debug() {
 	println("-------------MAP DEBUG-------------")
 	fmt.Printf("%+v\n", *h)
 	if h.oldbuckets != nil {
-		println("OLD-BUCKET")
+		println("**********OLD-BUCKET**********")
 		debugbucket(h.oldbuckets, uint(h.noldbuckets()))
 	}
-	println("BUCKET")
+	println("**********BUCKET**********")
 	debugbucket(h.buckets, uint(h.bucketmask)+1)
 	println("-------------MAP DEBUG END-------------")
 }
