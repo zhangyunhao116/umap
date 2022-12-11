@@ -22,6 +22,12 @@ func makeUint64BucketArray(size int) unsafe.Pointer {
 }
 
 func matchTopHash(tophash [bucketCnt]uint8, top uint8) bitmask64 {
+	// For the technique, see:
+	// http://graphics.stanford.edu/~seander/bithacks.html##ValueInWord
+	// (Determine if a word has a byte equal to n).
+	//
+	// The idea comes from SwissTable C++ version:
+	// https://github.com/abseil/abseil-cpp/blob/master/absl/container/internal/raw_hash_set.h#L661
 	ctrl := littleEndianBytesToUint64(tophash)
 	cmp := ctrl ^ (lsbs * uint64(top))
 	return bitmask64((cmp - lsbs) & ^cmp & msbs)

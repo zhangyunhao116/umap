@@ -2,7 +2,7 @@
 
 umap is a fast, reliable, simple hashmap that only supports the uint64 key/value pair. It is faster than the runtime hashmap in most cases.
 
-The umap is mainly based on the SwissTable(https://github.com/abseil/abseil-cpp/blob/master/absl/container/internal/raw_hash_set.h).
+The umap is mainly based on the SwissTable(https://github.com/abseil/abseil-cpp/blob/master/absl/container/internal/raw_hash_set.h), it is portable for all platforms and doesn't require SSE or AVX.
 
 ## QuickStart
 
