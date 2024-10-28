@@ -24,7 +24,8 @@ var (
 		2048,
 		4096,
 		8192,
-		1 << 16}
+		1 << 16,
+	}
 )
 
 func BenchmarkMapAccessHit(b *testing.B) {
